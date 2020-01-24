@@ -32,6 +32,10 @@ module IdentityCache
       end
 
       def fetch(records)
+        fetch_async(LoadStrategy::Eager, records) { |parent_records| parent_records }
+      end
+
+      def fetch_async(load_strategy, records)
         if reflection.polymorphic?
           types_to_parent_ids = {}
 
@@ -43,15 +47,13 @@ module IdentityCache
             types_to_parent_ids[parent_type][parent_id] = child_record
           end
 
-          parent_records = []
-
-          types_to_parent_ids.each do |type, ids_to_child_record|
-            type_parent_records = type.fetch_multi(ids_to_child_record.keys)
-            type_parent_records.each do |parent_record|
-              child_record = ids_to_child_record[parent_record.id]
+          load_strategy.load_batch(types_to_parent_ids.transform_keys(&:cached_primary_index)) do |parent_records_by_id|
+            parent_records_by_id.compact.each do |id, parent_record|
+              child_record = types_to_parent_ids[parent_record.class][id]
               child_record.instance_variable_set(records_variable_name, parent_record)
             end
-            parent_records.append(type_parent_records)
+
+            yield parent_records_by_id.values
           end
         else
           ids_to_child_record = records.each_with_object({}) do |child_record, hash|
@@ -60,14 +62,16 @@ module IdentityCache
               hash[parent_id] = child_record
             end
           end
-          parent_records = reflection.klass.fetch_multi(ids_to_child_record.keys)
-          parent_records.each do |parent_record|
-            child_record = ids_to_child_record[parent_record.id]
-            child_record.instance_variable_set(records_variable_name, parent_record)
+
+          load_strategy.load_multi(reflection.klass.cached_primary_index, ids_to_child_record.keys) do |parent_records_by_id|
+            parent_records_by_id.each do |id, parent_record|
+              child_record = ids_to_child_record[id]
+              child_record.instance_variable_set(records_variable_name, parent_record)
+            end
+
+            yield parent_records_by_id.values
           end
         end
-
-        parent_records
       end
 
       def embedded_recursively?

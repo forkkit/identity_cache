@@ -34,9 +34,8 @@ module IdentityCache
         raise NotImplementedError
       end
 
-      def fetch_async(load_strategy, records)
-        # TODO: stop relying on this non-async fallback
-        yield fetch(records)
+      def fetch_async(_load_strategy, _records)
+        raise NotImplementedError
       end
 
       def embedded?

@@ -13,6 +13,10 @@ module IdentityCache
         yield CacheKeyLoader.load_multi(cache_fetcher, db_keys)
       end
 
+      def load_batch(cache_fetcher_to_db_keys_hash)
+        yield CacheKeyLoader.load_batch(cache_fetcher_to_db_keys_hash)
+      end
+
       def lazy_load
         lazy_loader = Lazy.new
         yield lazy_loader
@@ -31,7 +35,7 @@ module IdentityCache
       end
 
       def load_pending(pending_loads)
-        result = CacheKeyLoader.batch_load(pending_loads.transform_values(&:db_keys))
+        result = CacheKeyLoader.load_batch(pending_loads.transform_values(&:db_keys))
         result.each do |cache_fetcher, load_result|
           load_request = pending_loads.fetch(cache_fetcher)
           load_request.after_load(load_result)
@@ -99,6 +103,13 @@ module IdentityCache
           end
         else
           @pending_loads[cache_fetcher] = LoadRequest.new(db_keys, callback)
+        end
+        nil
+      end
+
+      def load_batch(cache_fetcher_to_db_keys_hash, &callback)
+        cache_fetcher_to_db_keys_hash.each do |cache_fetcher, db_keys|
+          load_multi(cache_fetcher, db_keys, &callback)
         end
         nil
       end

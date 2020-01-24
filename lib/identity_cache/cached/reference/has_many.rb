@@ -63,11 +63,8 @@ module IdentityCache
 
             load_strategy.load_multi(reflection.klass.cached_primary_index, ids_to_parent_record.keys) do |child_records_by_id|
               parent_record_to_child_records = Hash.new { |h, k| h[k] = [] }
-              child_records = []
 
-              child_records_by_id.each do |id, child_record|
-                next unless child_record
-                child_records << child_record
+              child_records_by_id.compact.each do |id, child_record|
                 parent_record = ids_to_parent_record[id]
                 parent_record_to_child_records[parent_record] << child_record
               end
@@ -76,7 +73,7 @@ module IdentityCache
                 parent.instance_variable_set(records_variable_name, children)
               end
 
-              yield child_records
+              yield child_records_by_id.values
             end
           end
         end
